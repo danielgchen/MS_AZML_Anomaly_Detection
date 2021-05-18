@@ -2,8 +2,8 @@ import mlflow
 import argparse
 import numpy as np
 import pandas as pd
+from anomatools.models import kNNO
 from sklearn.preprocessing import OneHotEncoder
-from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
 
@@ -126,14 +126,12 @@ if __name__ == "__main__":
     X_train, y_train = train  # unpack training data
     
     # train model
-    model = IsolationForest(random_state=RAND_STATE)
-    model.fit(X_train)
-    # TODO: find save model function from sklearn
-    # TODO: or turn on mlflow autolog (mlflow.autolog()) <-- check for examples
+    model = kNNO()
+    model.fit(X_train, y_train)
     
     # score model
     mlflow.log_metric('F1-Score Training Normal', compute_f1(model, train, 1))
     mlflow.log_metric('F1-Score Testing Normal', compute_f1(model, test_norm, 1))
     mlflow.log_metric('F1-Score Testing Anomaly', compute_f1(model, test_anom, -1))
 
-    
+

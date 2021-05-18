@@ -13,3 +13,5 @@ dependencies:
     - sklearn
     - azureml-mlflow
     - azureml-dataprep
+    - anomatools
+    - dtaidistance
