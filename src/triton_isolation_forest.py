@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder
@@ -105,16 +106,20 @@ def split_data(df):
     
     return (X_train, y_train), (X_test_norm, y_test_norm), (X_test_anom, y_test_anom)
 
-def compute_f1(model, data, pos_label):
+def compute_f1(service, data, pos_label):
     '''
     computes an f1 score, pos_label 1=normal, -1=anomaly
     '''
-    X, y = data  # unpack data
-    true_labels = [pos_label] * X.shape[0]
-    predicted_labels = model.predict(X)
+    # run prediction
+    # TODO: is there a way we can test the data to see if its a train, label list or just a matrix?
+    input_data = data[0].values.tolist()  # to numpy array then list so it can be serialized
+    sample_input = json.dumps({'data': input_data})
+    # create labels
+    predicted_labels = service.run(sample_input)
+    predicted_labels = np.array(predicted_labels).flatten()
+    true_labels = [pos_label] * len(predicted_labels)
+    # compute f1 score
     score = f1_score(true_labels, predicted_labels, pos_label=pos_label)
     
     return score
 
-
-    

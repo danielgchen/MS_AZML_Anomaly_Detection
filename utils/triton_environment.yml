@@ -8,4 +8,5 @@ dependencies:
   - pip
   - pip:
     - sklearn
+    - onnxruntime
     - azureml-defaults
