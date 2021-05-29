@@ -1,0 +1,15 @@
+name: SampleEnv
+channels:
+  - defaults
+  - anaconda
+  - conda-forge
+dependencies:
+  - python=3.6.2
+  - pip
+  - pip:
+    - azureml-mlflow
+    - mlflow
+    - azureml-defaults
+    - onnxruntime-gpu
+    - sklearn
+    - skl2onnx

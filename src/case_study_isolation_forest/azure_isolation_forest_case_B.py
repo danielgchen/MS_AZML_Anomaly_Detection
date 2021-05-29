@@ -1,5 +1,4 @@
 import mlflow
-mlflow.autolog()  # start logging
 import argparse
 import numpy as np
 import pandas as pd
@@ -7,9 +6,12 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.ensemble import IsolationForest
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
+from skl2onnx import convert_sklearn
+from skl2onnx.common.data_types import FloatTensorType
+import onnxruntime as ort
 
 '''
-This is the carbon-savings options, where we take max of n-samples, medium of n-features, and low n-estimators
+This is the carbon-savings option, where we take low n-estimators
 '''
 
 # set constants
@@ -104,13 +106,30 @@ def split_data(df):
     
     return (X_train, y_train), (X_test_norm, y_test_norm), (X_test_anom, y_test_anom)
 
+def preprocess(data):
+    '''
+    takes in list of lists input data and gives an ONNX `float` so float32 numpy array
+    '''
+    if(isinstance(data, pd.DataFrame)):
+        data = data.values.astype('float32')
+    elif(isinstance(data, np.array)):
+        data = data.astype('float32')
+    else:
+        if(DEBUG): print(f'Unknown data type: {type(data)}')
+        data = np.array(data).astype('float32')
+    
+    return data
+    
 def compute_f1(model, data, pos_label):
     '''
     computes an f1 score, pos_label 1=normal, -1=anomaly
     '''
+    session, input_name, label_name = model  # unpack model
     X, y = data  # unpack data
+    X = preprocess(X)  # preprocess it into float format
     true_labels = [pos_label] * X.shape[0]
-    predicted_labels = model.predict(X)
+    predicted_labels = session.run([label_name], {input_name: X})[0].tolist()
+    predicted_labels = [label[0] for label in predicted_labels]
     score = f1_score(true_labels, predicted_labels, pos_label=pos_label)
     
     return score
@@ -131,12 +150,22 @@ if __name__ == "__main__":
     X_train, y_train = train  # unpack training data
     
     # train model
-    model = IsolationForest(random_state=RAND_STATE, max_samples=256, max_features=50, n_estimators=50)
-    model.fit(X_train)
+    model = IsolationForest(random_state=RAND_STATE, n_estimators=50)
+    model.fit(X_train.astype('float32'))
+    
+    # convert to onnxfrom skl2onnx import convert_sklearn
+    initial_types = [('float_input', FloatTensorType([None, X_train.shape[1]]))]
+    onx = convert_sklearn(model, initial_types=initial_types)
+    session = ort.InferenceSession(onx.SerializeToString())
+    input_name = session.get_inputs()[0].name
+    label_name = session.get_outputs()[0].name
+    del onx, model
+    model = session, input_name, label_name
+    if(DEBUG): print(f'ONNX Runtime Device: {ort.get_device()}')
     
     # score model
     mlflow.log_metric('F1-Score Training Normal', compute_f1(model, train, 1))
     mlflow.log_metric('F1-Score Testing Normal', compute_f1(model, test_norm, 1))
     mlflow.log_metric('F1-Score Testing Anomaly', compute_f1(model, test_anom, -1))
-
-    
+        
+        
