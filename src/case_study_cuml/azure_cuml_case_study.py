@@ -195,7 +195,7 @@ if __name__ == "__main__":
     # visualization via pca
     from sklearn.decomposition import PCA
     pca = PCA(n_components=2, svd_solver='full')
-    pca.fit(score_df.iloc[:,:3].T)  # we're only using the parameters
+    pca.fit(score_df.iloc[:,:5].T)  # we're only using the parameters
     # - per param
     fig = plt.figure(figsize=[20,4])
     idx = 1
