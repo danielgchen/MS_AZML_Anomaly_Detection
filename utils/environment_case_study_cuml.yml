@@ -1,0 +1,18 @@
+name: SampleEnv
+channels:
+  - defaults
+  - anaconda
+  - conda-forge
+  - rapidsai
+  - nvidia
+dependencies:
+  - python=3.7
+  - rapids-blazing=0.19
+  - cudatoolkit=11.0
+  - pip
+  - pip:
+    - azureml-mlflow
+    - mlflow
+    - azureml-defaults
+    - sklearn
+    - matplotlib
