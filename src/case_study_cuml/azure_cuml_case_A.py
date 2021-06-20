@@ -134,37 +134,45 @@ if __name__ == "__main__":
     df = pd.read_csv(args.data_path, index_col=None, header=None)  # read it
     df = process_data(df)
 
-    # split data
-    train, train_norm, train_anom, test_norm, test_anom = split_data(df)
-    X_train, y_train = train  # unpack training data
-
     ## TRAIN
     # get parameters
     label_map = {'normal.': 0, 'anomaly.': 1}
-    params = {'random_state':RAND_STATE, 'n_estimators':250, 'max_depth':20,
+    params = {'random_state':RAND_STATE, 'n_estimators':2500, 'max_depth':200,
               'n_bins':20, 'max_samples':1.0, 'max_features':0.4, 'n_streams':1}
     mlflow.log_params(params)
     if(DEBUG): print(f'Random Forest with {params}')
     
     # train model
     model = cuRF(**params)
-    start_time = time.time()  # mark start
-    model.fit(X_train, np.vectorize(label_map.get)(y_train))
+    
+    # pseudo-cross-validation
+    subsample_perc = 0.75  # take 75% of the data for all of the training subsets
+    f1_train_norms,f1_train_anoms,f1_test_norms,f1_test_anoms,run_times = [],[],[],[],[]
+    for random_state in range(1000):  # number of cross-validations
+        np.random.seed(random_state)
+        valid_idxs = np.random.choice(df.index, size=round(subsample_perc*df.shape[0]), replace=False)
+        # split data
+        train, train_norm, train_anom, test_norm, test_anom = split_data(df.loc[valid_idxs])
+        X_train, y_train = train  # unpack training data
+        
+        # train model
+        start_time = time.time()  # mark start
+        model.fit(X_train, np.vectorize(label_map.get)(y_train))
 
-    ## SCORE
-    # score model
-    f1_train_norm = compute_f1(model, train_norm, 0)
-    f1_train_anom = compute_f1(model, train_anom, 1)
-    f1_test_norm = compute_f1(model, test_norm, 0)
-    f1_test_anom = compute_f1(model, test_anom, 1)
+        ## SCORE
+        # score model
+        f1_train_norms.append(compute_f1(model, train_norm, 0))
+        f1_train_anoms.append(compute_f1(model, train_anom, 1))
+        f1_test_norms.append(compute_f1(model, test_norm, 0))
+        f1_test_anoms.append(compute_f1(model, test_anom, 1))
 
-    # get run time
-    end_time = time.time()  # mark end
-    run_time = end_time - start_time  # calculate runtime based on fitting and scoring
+        # get run time
+        end_time = time.time()  # mark end
+        run_times.append(end_time - start_time)  # calculate runtime based on fitting and scoring
 
     # log values
-    mlflow.log_metric('F1-Score Training Normal', f1_train_norm)
-    mlflow.log_metric('F1-Score Training Anomaly', f1_train_anom)
-    mlflow.log_metric('F1-Score Testing Normal', f1_test_norm)
-    mlflow.log_metric('F1-Score Testing Anomaly', f1_test_anom)
-    mlflow.log_metric('Run-Time for Train and Score', run_time)
+    mlflow.log_metric('F1-Score Training Normal', np.mean(f1_train_norms))
+    mlflow.log_metric('F1-Score Training Anomaly', np.mean(f1_train_anoms))
+    mlflow.log_metric('F1-Score Testing Normal', np.mean(f1_test_norms))
+    mlflow.log_metric('F1-Score Testing Anomaly', np.mean(f1_test_anoms))
+    mlflow.log_metric('Run-Time for Train and Score', np.mean(run_times))
